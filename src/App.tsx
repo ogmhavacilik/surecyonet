@@ -6,7 +6,7 @@
 import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { Save, FileDown, Table as TableIcon, FileText, Plus, Trash2, ChevronRight, ChevronLeft, ArrowUpLeft, ArrowUpRight, ArrowDown, Sparkles } from 'lucide-react';
+import { Save, FileDown, Table as TableIcon, FileText, Plus, Trash2, ChevronRight, ChevronLeft, ArrowUpLeft, ArrowUpRight, ArrowDown, Sparkles, Settings, Upload, Download, Printer } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -186,14 +186,58 @@ export default function App() {
   const [selectingTarget, setSelectingTarget] = useState<{ stepIndex: number, branch: 'yes' | 'no' | 'info' } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('geminiApiKey') || process.env.GEMINI_API_KEY || '');
+  const [showSettings, setShowSettings] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const saveApiKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  const exportToJson = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `ogm_surec_${data.surecNo || 'taslak'}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const importFromJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedData = JSON.parse(e.target?.result as string);
+        if (importedData && importedData.steps) {
+          setData(importedData);
+          alert("Proje başarıyla yüklendi!");
+        } else {
+          alert("Geçersiz dosya formatı.");
+        }
+      } catch (err) {
+        alert("Dosya okunurken bir hata oluştu.");
+      }
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
 
   const generateWithAi = async () => {
+    if (!apiKey) {
+      setShowSettings(true);
+      return;
+    }
     const userInput = window.prompt("Süreci tasarlamak için bir açıklama girin (Örn: 'İş başvurusu süreci'):");
     if (!userInput) return;
 
     setIsAiGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Aşağıdaki süreç için bir iş akışı tasarla. Yanıtı sadece JSON formatında ver.
@@ -450,8 +494,8 @@ export default function App() {
     <div className="min-h-screen bg-gray-200 p-4 md:p-8 flex flex-col items-center font-sans text-black">
       
       {/* TOOLBAR */}
-      <div className="w-full max-w-[800px] mb-6 flex flex-wrap gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-md border border-gray-300">
-        <div className="flex gap-2">
+      <div className="w-full max-w-[1000px] mb-6 flex flex-wrap gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-md border border-gray-300 print:hidden">
+        <div className="flex gap-2 flex-wrap">
           <button 
             onClick={() => setView('form')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${view === 'form' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
@@ -464,9 +508,36 @@ export default function App() {
           >
             <TableIcon size={18} /> Matris Hazırla
           </button>
+          <div className="w-px h-8 bg-gray-300 mx-2 self-center hidden md:block"></div>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 shadow-sm transition-all"
+          >
+            <Upload size={18} /> Proje Yükle
+          </button>
+          <input 
+            type="file" 
+            accept=".json" 
+            ref={fileInputRef} 
+            onChange={importFromJson} 
+            className="hidden" 
+          />
+          <button 
+            onClick={exportToJson}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 shadow-sm transition-all"
+          >
+            <Download size={18} /> Proje Kaydet
+          </button>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-600 rounded-lg font-bold text-sm hover:bg-gray-200 shadow-sm transition-all"
+            title="Ayarlar"
+          >
+            <Settings size={18} />
+          </button>
           <button 
             onClick={generateWithAi}
             disabled={isAiGenerating}
@@ -482,7 +553,7 @@ export default function App() {
               "flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all",
               isExporting 
                 ? "bg-gray-400 cursor-not-allowed text-white" 
-                : "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
             )}
           >
             {isExporting ? (
@@ -497,19 +568,10 @@ export default function App() {
             )}
           </button>
           <button 
-            onClick={() => {
-              alert('Veriler kaydedildi (Simülasyon)');
-              exportToPDF();
-            }}
-            disabled={isExporting}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all",
-              isExporting 
-                ? "bg-gray-400 cursor-not-allowed text-white" 
-                : "bg-emerald-600 text-white hover:bg-emerald-700"
-            )}
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg font-bold text-sm hover:bg-gray-900 shadow-md transition-all"
           >
-            <Save size={18} /> {isExporting ? 'İşleniyor...' : 'Kaydet ve PDF Al'}
+            <Printer size={18} /> Yazdır
           </button>
         </div>
       </div>
@@ -1048,9 +1110,44 @@ export default function App() {
       </div>
 
       {/* INSTRUCTIONS */}
-      <div className="mt-8 text-gray-500 text-xs text-center max-w-[600px] leading-relaxed">
+      <div className="mt-8 text-gray-500 text-xs text-center max-w-[600px] leading-relaxed print:hidden">
         <p>İpucu: Metinlerin üzerine tıklayarak düzenleme yapabilirsiniz. Form ve Matris sayfaları arasında geçiş yaparak tüm süreci yapılandırın. Hazırlayan, Kontrol Eden ve Onaylayan alanları da düzenlenebilir.</p>
       </div>
+
+      {/* SETTINGS MODAL */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gray-800 text-white p-4 flex justify-between items-center">
+              <h3 className="font-bold flex items-center gap-2"><Settings size={18} /> Ayarlar</h3>
+              <button onClick={() => setShowSettings(false)} className="text-gray-300 hover:text-white">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Gemini API Anahtarı</label>
+                <input 
+                  type="password" 
+                  value={apiKey}
+                  onChange={(e) => saveApiKey(e.target.value)}
+                  placeholder="AI-..."
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Yapay zeka ile süreç tasarımı yapabilmek için Google Gemini API anahtarı gereklidir. Anahtarınız sadece tarayıcınızda (localStorage) saklanır.
+                </p>
+              </div>
+            </div>
+            <div className="bg-gray-50 p-4 flex justify-end">
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

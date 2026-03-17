@@ -105,6 +105,19 @@
   }
 }
 
+@media print {
+  body {
+    background-color: white;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}
+
 .markdown-body {
   font-size: 0.875rem;
   line-height: 1.625;
